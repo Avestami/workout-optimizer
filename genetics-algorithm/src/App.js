@@ -33,12 +33,11 @@ function App() {
   ]);
   const [selectedExercises, setSelectedExercises] = useState([]);
   const [minutes, setMinutes] = useState(30);
-  const [data, setData] = useState(null);
-  const [chartData, setChartData] = useState({});
   const [mutationRate, setMutationRate] = useState(0.1);
   const [crossoverRate, setCrossoverRate] = useState(0.8);
   const [elitismRate, setElitismRate] = useState(0.2);
-  const [bestPlan, setBestPlan] = useState([]); // Store the best workout plan
+  const [data, setData] = useState(null);
+  const [chartData, setChartData] = useState({});
 
   const handleExerciseChange = (exercise, checked) => {
     if (checked) {
@@ -51,91 +50,58 @@ function App() {
   };
 
   const handleRunOptimization = async () => {
-  try {
-    if (selectedExercises.length === 0) {
-      alert("Please select at least one workout.");
-      return;
+    try {
+      if (selectedExercises.length === 0) {
+        alert("Please select at least one workout.");
+        return;
+      }
+
+      const response = await axios.post("http://localhost:5000/optimize", {
+        selected_exercises: selectedExercises,
+        minutes: minutes,
+        mutation_rate: mutationRate,
+        crossover_rate: crossoverRate,
+        elitism_rate: elitismRate,
+      });
+
+      const result = response.data;
+
+      if (!result.best_plan || result.best_plan.length === 0) {
+        alert("No optimal plan found. Try adjusting the parameters.");
+        return;
+      }
+
+      setData(result);
+      setChartData({
+        fitness: {
+          labels: result.fitness_over_generations.map((_, i) => `Generation ${i + 1}`),
+          datasets: [
+            {
+              label: "Fitness Over Generations",
+              data: result.fitness_over_generations,
+              borderColor: "#3b82f6",
+              borderWidth: 2,
+              fill: false,
+            },
+          ],
+        },
+        bestFitness: {
+          labels: result.best_fitness_progression.map((_, i) => `Generation ${i + 1}`),
+          datasets: [
+            {
+              label: "Best Fitness Progression",
+              data: result.best_fitness_progression,
+              borderColor: "#e11d48",
+              borderWidth: 2,
+              fill: false,
+            },
+          ],
+        },
+      });
+    } catch (error) {
+      console.error("Error running optimization:", error);
     }
-    const response = await axios.post("http://localhost:5000/optimize", {
-      selected_exercises: selectedExercises,
-      minutes: minutes,
-      goal: "fat_loss",
-      mutation_rate: mutationRate,
-      crossover_rate: crossoverRate,
-      elitism_rate: elitismRate,
-    });
-
-    const result = response.data;
-
-    if (!result.best_plan || result.best_plan.length === 0) {
-      alert("No workout plan found! Please try again.");
-      return;
-    }
-
-    setData(result);
-
-    // Filter out exercises that were not selected
-    const filteredBestPlan = result.best_plan.filter((exercise) =>
-      selectedExercises.some((selected) => selected.name === exercise.name)
-    );
-
-    setBestPlan(filteredBestPlan);
-    setChartData({
-      fitness: {
-        labels: result.fitness_over_generations.map((_, i) => `Generation ${i + 1}`),
-        datasets: [
-          {
-            label: "Fitness Over Generations",
-            data: result.fitness_over_generations,
-            borderColor: "#3b82f6",
-            borderWidth: 2,
-            fill: false,
-          },
-        ],
-      },
-      averageFitness: {
-        labels: result.average_fitness.map((_, i) => `Generation ${i + 1}`),
-        datasets: [
-          {
-            label: "Average Fitness Over Generations",
-            data: result.average_fitness,
-            borderColor: "#10b981",
-            borderWidth: 2,
-            fill: false,
-          },
-        ],
-      },
-      diversity: {
-        labels: result.diversity.map((_, i) => `Generation ${i + 1}`),
-        datasets: [
-          {
-            label: "Diversity of Chromosomes",
-            data: result.diversity,
-            borderColor: "#f97316",
-            borderWidth: 2,
-            fill: false,
-          },
-        ],
-      },
-      topFitness: {
-        labels: result.best_fitness_progression.map((_, i) => `Generation ${i + 1}`),
-        datasets: [
-          {
-            label: "Top Fitness Progression",
-            data: result.best_fitness_progression,
-            borderColor: "#e11d48",
-            borderWidth: 2,
-            fill: false,
-          },
-        ],
-      },
-    });
-  } catch (error) {
-    console.error("Error fetching optimization:", error);
-  }
-};
-
-
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -232,45 +198,29 @@ function App() {
       </div>
 
       {data && (
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-2xl font-semibold mb-4">Fitness Over Generations</h2>
-            <div className="w-full h-[300px]">
-              <Line data={chartData.fitness} options={{ responsive: true, maintainAspectRatio: false }} />
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-2xl font-semibold mb-4">Average Fitness Over Generations</h2>
-            <div className="w-full h-[300px]">
-              <Line data={chartData.averageFitness} options={{ responsive: true, maintainAspectRatio: false }} />
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-2xl font-semibold mb-4">Diversity of Chromosomes</h2>
-            <div className="w-full h-[300px]">
-              <Line data={chartData.diversity} options={{ responsive: true, maintainAspectRatio: false }} />
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-2xl font-semibold mb-4">Top Fitness Progression</h2>
-            <div className="w-full h-[300px]">
-              <Line data={chartData.topFitness} options={{ responsive: true, maintainAspectRatio: false }} />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {bestPlan.length > 0 && (
         <div className="mt-8">
-          <h2 className="text-2xl font-semibold mb-4">Best Workout Plan</h2>
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <ul>
-              {bestPlan.map((exercise, index) => (
-                <li key={index} className="py-2">
-                  <span className="font-semibold">{exercise.name}</span> - {exercise.calories_burned} calories burned
-                </li>
-              ))}
-            </ul>
+          <h2 className="text-2xl font-semibold mb-4 text-center">Best Workout Plan</h2>
+          <ul className="bg-white p-6 rounded-lg shadow-md">
+            {data.best_plan.map((exercise, index) => (
+              <li key={index} className="mb-2">
+                {exercise.name} - {exercise.calories_burned} calories burned
+              </li>
+            ))}
+          </ul>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+            <div className="bg-white p-6 rounded-lg shadow-md">
+              <h2 className="text-xl font-semibold mb-4">Fitness Over Generations</h2>
+              <div className="w-full h-[300px]">
+                <Line data={chartData.fitness} options={{ responsive: true, maintainAspectRatio: false }} />
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-lg shadow-md">
+              <h2 className="text-xl font-semibold mb-4">Best Fitness Progression</h2>
+              <div className="w-full h-[300px]">
+                <Line data={chartData.bestFitness} options={{ responsive: true, maintainAspectRatio: false }} />
+              </div>
+            </div>
           </div>
         </div>
       )}
